@@ -31,3 +31,18 @@ build/
 
 ### VS Code ###
 .vscode/
+
+
+# Python cache
+__pycache__/
+*.pyc
+
+# ML artifacts
+*.pkl
+*.bin
+*.safetensors
+
+# RAG artifacts
+ml-service/rag/faiss_index.bin
+ml-service/rag/documents.pkl
+ml-service/anomaly_pipeline.pkl
