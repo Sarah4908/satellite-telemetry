@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+
+  db:
+    image: postgres:15
+    container_name: telemetry-postgres
+    environment:
+      POSTGRES_DB: telemetry
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./secure_dashboard
+    container_name: telemetry-backend
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/telemetry
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
+  ml-service:
+    build: ./ml-service
+    container_name: telemetry-ml
+    ports:
+      - "8000:8000"
+    environment:
+    - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_ML_URL: http://ml-service:8000
+        VITE_BACKEND_URL: http://backend:8080
+    container_name: telemetry-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - ml-service
+      - backend
+
+volumes:
+  postgres_data:
