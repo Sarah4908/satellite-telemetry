@@ -1,42 +1,44 @@
 # ======================
-# Python
+# Python (ML Service)
 # ======================
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .venv/
+ml-service/.venv/
 
-# ML artifacts
+# ML artifacts (do not push trained models)
 *.pkl
 *.bin
 *.safetensors
 
-# RAG specific
-ml-service/rag/faiss_index.bin
-ml-service/rag/documents.pkl
-ml-service/anomaly_pipeline.pkl
+# ======================
+# Frontend (React)
+# ======================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
 
 # ======================
-# Frontend
+# Spring Boot (Java)
 # ======================
-node_modules/
-dist/
-build/
-
-# ======================
-# Spring / Java
-# ======================
-target/
+secure_dashboard/target/
+secure_dashboard/bin/
 *.log
 
 # ======================
-# Environment files
+# Environment Files
 # ======================
 .env
+.env.*
+!frontend/.env.development
+!frontend/.env.production
 
 # ======================
-# IDE
+# IDE / OS
 # ======================
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db

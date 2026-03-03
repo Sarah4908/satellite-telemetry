@@ -15,11 +15,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * Simple WebSocket handler that keeps track of connected sessions per-satelliteId
- * and allows broadcasting telemetry data to every client registered for a particular
- * satellite.
- */
+
 @Component
 @Slf4j
 public class TelemetryWebSocketHandler extends TextWebSocketHandler {

@@ -37,9 +37,6 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        VITE_ML_URL: http://ml-service:8000
-        VITE_BACKEND_URL: http://backend:8080
     container_name: telemetry-frontend
     ports:
       - "5173:80"

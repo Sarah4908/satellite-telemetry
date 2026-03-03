@@ -1,110 +1,198 @@
-# Satellite Telemetry Project
+﻿#  Satellite Telemetry Monitoring & Anomaly Detection System
 
-This repository contains the pieces that power a simple satellite‑telemetry
-demo. At the moment we’re only concerned with the back‑end and the anomaly
-scoring service – the React frontend has been removed from the scope of this
-readme.
+A fully containerized, multi-service telemetry processing platform that ingests satellite data, performs real-time anomaly detection using machine learning, generates contextual explanations, and persists results in a relational database.
 
-## Components
+Designed to demonstrate microservice architecture, ML integration, distributed systems, and production-style container orchestration.
 
-- **secure_dashboard** – Spring Boot application that exposes a REST API,
-  persists telemetry records in PostgreSQL, broadcasts them over WebSocket and
-  runs a tiny retrieval‑augmented “RAG” layer to generate human‑readable
-  explanations for anomalies.
-- **ml‑service** – FastAPI microservice that receives raw telemetry, computes
-  delta/rolling‑mean features, scores them with a pre‑trained `IsolationForest`,
-  constructs a prediction payload and (optionally) forwards the result back to
-  the Spring backend.
-
-Both services are designed to run independently during development or together
-inside Docker.
-
-## Running the full stack (Docker)
-
-The `docker-compose.yml` file in the project root defines three containers:
-
-```yaml
-services:
-  db:      # PostgreSQL database
-  backend: # build ./secure_dashboard
-  ml-service: # build ./ml-service
-  frontend:  # you can ignore this service for now
+## System Architecture
+```text
+Client (React)
+        │
+        ▼
+Spring Boot Backend  ───── PostgreSQL
+        │
+        ▼
+FastAPI ML Service (IsolationForest + RAG Engine)
 ```
 
-To start everything:
 
-```sh
-docker-compose up --build -d
-# view combined logs
-docker-compose logs -f
+
+## Services
+
+| Service | Tech | Responsibility |
+|---------|------|-----------------|
+| **Frontend** | React + Vite | Telemetry submission, anomaly visualization, history display |
+| **Backend** | Spring Boot | REST API, persistence, WebSocket broadcast |
+| **ML Service** | FastAPI + Scikit-Learn | Feature engineering + anomaly scoring |
+| **Database** | PostgreSQL | Persistent telemetry storage |
+| **Orchestration** | Docker Compose | Multi-service networking & configuration |
+
+##  Key Features
+
+- **Real-time telemetry ingestion** – Accept and process satellite sensor data instantly
+- **IsolationForest-based anomaly detection** – Statistically sound anomaly scoring
+- **Feature engineering** – Delta and rolling mean computations
+- **Optional RAG-powered explanation generation** – Contextual natural language anomaly analysis
+- **REST + WebSocket backend** – Flexible client communication patterns
+- **Persistent storage** – PostgreSQL for reliable data retention
+- **Fully Dockerized microservice architecture** – Production-ready containerization
+- **Environment-based configuration** – Flexible deployment across environments
+- **Clean separation of services** – Maintainable, independently deployable components
+
+## Running the Full Stack (Recommended)
+
+From the project root:
+
+```bash
+docker compose up --build -d
 ```
 
-- **Postgres** listens on `localhost:5432`
-- **Backend** listens on `http://localhost:8080`
-- **ML service** listens on `http://localhost:8000`
+View logs:
 
-The compose file also configures the backend to use
-`jdbc:postgresql://db:5432/telemetry` and injects `OPENAI_API_KEY` into the ML
-container for the RAG explanation engine. The frontend service is built but not
-required for the core system and can simply be ignored or removed from the
-compose file if desired.
+```bash
+docker compose logs -f
+```
 
-Stop the stack with `docker-compose down` (add `-v` to remove the database
-volume).
+### Services & Ports
 
-## Running individually
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend | http://localhost:8080 |
+| ML Service | http://localhost:8000/docs |
+| PostgreSQL | localhost:5432 |
+
+Stop services:
+
+```bash
+docker compose down
+```
+
+Remove database volume:
+
+```bash
+docker compose down -v
+```
+
+>  Make sure Docker Desktop is running before executing the commands above.
+
+##  ML Pipeline
+
+The ML service:
+
+- Accepts raw telemetry (/predict)
+- Computes engineered features:
+  - Temperature delta
+  - Voltage delta
+  - Rolling mean
+- Applies a pre-trained IsolationForest
+- Produces:
+  - Anomaly score
+  - Binary anomaly flag
+  - Optional contextual explanation
+
+**Training script:** ml-service/train_model.py
+
+**Generates:** anomaly_pipeline.pkl
+
+*(Note: Model artifacts are excluded from Git.)*
+
+##  Data Flow
+
+1. Client sends telemetry to ML service
+2. ML service scores data
+3. ML service optionally forwards result to backend
+4. Backend stores record in PostgreSQL
+5. Backend broadcasts via WebSocket
+6. Clients retrieve history via /api/telemetry
+
+## Running Services Individually
 
 ### Backend
 
-```sh
+```bash
 cd secure_dashboard
-# compile & test with the Maven wrapper
 ./mvnw clean install
+./mvnw spring-boot:run
+```
 
-# run against a local Postgres instance
+
+
+
+Or with custom database:
+
+```bash
 ./mvnw spring-boot:run \
     -Dspring.datasource.url=jdbc:postgresql://localhost:5432/telemetry \
     -Dspring.datasource.username=postgres \
     -Dspring.datasource.password=postgres
 ```
 
-Unit/integration tests use an in‑memory H2 database; the test configuration is
-in `src/test/resources/application.properties`.
+**Tests:** Unit/integration tests use in-memory H2 via `src/test/resources/application.properties`
 
-### ML service
+### ML Service
 
-```sh
+```bash
 cd ml-service
 pip install -r requirements.txt
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
+uvicorn app:app --reload --port 8000
 ```
 
-The service expects a trained pipeline file (`anomaly_pipeline.pkl`) produced by
-`train_model.py`. When an anomaly is detected it will call the backend at
-`http://backend:8080/api/ml/result`; you can adjust `SPRING_URL` in `app.py`
-or run it in Docker for proper DNS resolution.
 
-### Support scripts
 
-- `ml-service/train_model.py` – synthetic data generator and model training;
-  writes `anomaly_pipeline.pkl`.
-- `ml-service/rag/build_index.py` – builds a FAISS index and document list used
-  by `rag_engine.py` for explanation generation.
 
-## How components interact
+Expects trained pipeline: `anomaly_pipeline.pkl`
 
-1. A client POSTs raw telemetry to the ML service (`/predict`).
-2. The ML service computes features, scales them, predicts with the
-   `IsolationForest` and may generate a RAG explanation via `rag_engine`.
-3. The ML service returns the scored payload and, if running in Docker, also
-   POSTs it to the backend at `/api/ml/result`.
-4. The backend saves the record, broadcasts it to any WebSocket subscribers and
-   (if the record is marked anomalous) may call `RagService` to compute an
-   explanation.
-5. Clients can retrieve stored records via `GET /api/telemetry` and request
-   explanations via `POST /api/anomaly/explain`.
+Optionally forwards results to backend at `http://backend:8080/api/ml/result` (adjust `SPRING_URL` in `app.py`)
 
----
+### Support Scripts
 
-For now the README focuses on these two services; the React frontend has been
-omitted but can be added back later when UI work resumes.
+- **`ml-service/train_model.py`** – Synthetic data generator & model training → `anomaly_pipeline.pkl`
+- **`ml-service/rag/build_index.py`** – Builds FAISS index & document list for explanation generation
+
+## Testing
+
+Backend tests use in-memory H2:
+
+```
+src/test/resources/application.properties
+```
+
+## Environment Configuration
+
+Environment variables for:
+
+- Database credentials
+- Service URLs
+- Optional OpenAI API key (RAG)
+
+Frontend configuration via:
+
+- frontend/.env.production
+- frontend/.env.development
+
+## Tech Stack
+
+- **Java 17** – Backend runtime
+- **Spring Boot 3** – Web framework & DI
+- **PostgreSQL** – Relational database
+- **FastAPI** – ML service framework
+- **Scikit-Learn** – Machine learning
+- **React** – Frontend UI
+- **Docker Compose** – Container orchestration
+
+## Screenshots
+![alt text](images/anomaly.png)
+![alt text](images/dashboardui.png)
+![alt text](images/telemetryhistory.png)
+
+## Why This Project?
+
+This project demonstrates:
+
+- **Multi-service architecture** – Loosely coupled, independently deployable services
+- **Backend + ML integration** – Seamless service-to-service communication
+- **Container networking** – Service discovery via Docker DNS
+- **Environment-driven configuration** – Flexible, secure credential management
+- **Clean production-style structure** – Industry-standard project organization
+- **Separation of concerns** – Each service owns its domain
