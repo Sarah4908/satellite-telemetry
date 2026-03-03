@@ -1,0 +1,42 @@
+# ======================
+# Python
+# ======================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+
+# ML artifacts
+*.pkl
+*.bin
+*.safetensors
+
+# RAG specific
+ml-service/rag/faiss_index.bin
+ml-service/rag/documents.pkl
+ml-service/anomaly_pipeline.pkl
+
+# ======================
+# Frontend
+# ======================
+node_modules/
+dist/
+build/
+
+# ======================
+# Spring / Java
+# ======================
+target/
+*.log
+
+# ======================
+# Environment files
+# ======================
+.env
+
+# ======================
+# IDE
+# ======================
+.vscode/
+.idea/
