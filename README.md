@@ -1,8 +1,22 @@
 ﻿#  Satellite Telemetry Monitoring & Anomaly Detection System
 
+![Java](https://img.shields.io/badge/Java-17-orange)
+![Spring Boot](https://img.shields.io/badge/SpringBoot-Backend-green)
+![FastAPI](https://img.shields.io/badge/FastAPI-ML%20Service-blue)
+![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-yellow)
+![React](https://img.shields.io/badge/React-Frontend-blue)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)
+
 A fully containerized, multi-service telemetry processing platform that ingests satellite data, performs real-time anomaly detection using machine learning, generates contextual explanations, and persists results in a relational database.
 
 Designed to demonstrate microservice architecture, ML integration, distributed systems, and production-style container orchestration.
+## Problem Statement
+
+Satellite systems continuously generate telemetry data from multiple sensors such as temperature, voltage, and system status indicators. Detecting anomalies in this data is critical for identifying potential failures, abnormal operating conditions, or unexpected system behavior.
+
+Traditional monitoring approaches rely on manually defined thresholds, which often fail to capture complex patterns in high-volume telemetry streams. This project explores the use of machine learning techniques combined with distributed system architecture to automatically detect anomalies and provide contextual explanations.
+
 
 ## System Architecture
 ```text
@@ -14,7 +28,27 @@ Spring Boot Backend  ───── PostgreSQL
         ▼
 FastAPI ML Service (IsolationForest + RAG Engine)
 ```
+## System Layers
 
+The system is organised into multiple layers to ensure modularity and scalability.
+
+**1. Presentation Layer**
+- React dashboard for telemetry submission and anomaly visualisation
+- Displays historical telemetry and anomaly alerts
+
+**2. Application Layer**
+- Spring Boot backend providing REST APIs
+- Handles request routing, persistence, and WebSocket broadcasting
+
+**3. ML Processing Layer**
+- FastAPI microservice responsible for feature engineering and anomaly detection
+- Uses a trained IsolationForest model to score incoming telemetry
+
+**4. Data Layer**
+- PostgreSQL database storing telemetry records and anomaly results
+
+**5. Infrastructure Layer**
+- Docker Compose manages container orchestration, service networking, and environment configuration
 
 
 ## Services
@@ -32,7 +66,7 @@ FastAPI ML Service (IsolationForest + RAG Engine)
 - **Real-time telemetry ingestion** – Accept and process satellite sensor data instantly
 - **IsolationForest-based anomaly detection** – Statistically sound anomaly scoring
 - **Feature engineering** – Delta and rolling mean computations
-- **Optional RAG-powered explanation generation** – Contextual natural language anomaly analysis
+- **RAG-powered explanation generation** – Uses FAISS vector search to retrieve contextual documents and generate explanations for detected anomalies
 - **REST + WebSocket backend** – Flexible client communication patterns
 - **Persistent storage** – PostgreSQL for reliable data retention
 - **Fully Dockerized microservice architecture** – Production-ready containerization
@@ -170,6 +204,16 @@ Frontend configuration via:
 
 - frontend/.env.production
 - frontend/.env.development
+
+## Future Work
+
+Possible improvements and research directions include:
+
+- Evaluating deep learning based anomaly detection methods such as **Autoencoders or LSTM networks**
+- Expanding the **RAG explanation system** with larger knowledge bases and improved retrieval strategies
+- Integrating **stream processing frameworks (Kafka / Spark Streaming)** for large-scale telemetry ingestion
+- Applying the system to **real-world satellite telemetry datasets**
+- Implementing **automated alerting systems** for anomaly detection events
 
 ## Tech Stack
 
