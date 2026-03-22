@@ -1,81 +1,119 @@
-﻿#  Satellite Telemetry Monitoring & Anomaly Detection System
+﻿# Satellite Telemetry Monitoring & Anomaly Detection System
 
-![Java](https://img.shields.io/badge/Java-17-orange)
-![Spring Boot](https://img.shields.io/badge/SpringBoot-Backend-green)
-![FastAPI](https://img.shields.io/badge/FastAPI-ML%20Service-blue)
-![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-yellow)
-![React](https://img.shields.io/badge/React-Frontend-blue)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)
+[![Java](https://img.shields.io/badge/Java-17-orange)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/SpringBoot-Backend-green)](https://spring.io/projects/spring-boot)
+[![FastAPI](https://img.shields.io/badge/FastAPI-ML%20Service-blue)](https://fastapi.tiangolo.com/)
+[![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-yellow)](https://scikit-learn.org/)
+[![React](https://img.shields.io/badge/React-Frontend-blue)](https://react.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)](https://docs.docker.com/compose/)
 
-A fully containerized, multi-service telemetry processing platform that ingests satellite data, performs real-time anomaly detection using machine learning, generates contextual explanations, and persists results in a relational database.
+A containerised, multi-service telemetry processing platform that accepts manually submitted telemetry readings, detects anomalies in real time using machine learning, generates contextual explanations via a RAG pipeline, and persists results in PostgreSQL.
 
-Designed to demonstrate microservice architecture, ML integration, distributed systems, and production-style container orchestration.
+---
+
 ## Problem Statement
 
-Satellite systems continuously generate telemetry data from multiple sensors such as temperature, voltage, and system status indicators. Detecting anomalies in this data is critical for identifying potential failures, abnormal operating conditions, or unexpected system behavior.
+Satellite systems generate telemetry readings such as temperature, voltage, and altitude. This project simulates that data by accepting manually entered readings through a dashboard form, scoring them for anomalies using a trained IsolationForest model, and retrieving the closest matching fault description via a FAISS-backed RAG layer.
 
-Traditional monitoring approaches rely on manually defined thresholds, which often fail to capture complex patterns in high-volume telemetry streams. This project explores the use of machine learning techniques combined with distributed system architecture to automatically detect anomalies and provide contextual explanations.
-
+---
 
 ## System Architecture
-```text
-Client (React)
-        │
-        ▼
-Spring Boot Backend  ───── PostgreSQL
-        │
-        ▼
-FastAPI ML Service (IsolationForest + RAG Engine)
+
+Spring Boot acts as the single orchestrator. The frontend sends all telemetry to Spring Boot, which calls FastAPI internally for ML scoring, persists the result to PostgreSQL, and returns the scored result to the frontend. The frontend never talks to FastAPI directly.
+
 ```
-## System Layers
+React Frontend
+      │
+      │  POST /api/telemetry
+      ▼
+Spring Boot Backend ── calls internally ──► FastAPI ML Service
+      │                                       IsolationForest
+      │  saves result                         RAG Engine (FAISS)
+      ▼
+PostgreSQL DB
+      │
+      │  returns scored result
+      ▼
+React Frontend (displays result + refreshes history)
+```
 
-The system is organised into multiple layers to ensure modularity and scalability.
+**On ML service startup**, FastAPI makes one call to Spring Boot's `/api/telemetry` to load existing telemetry history. This seeds the in-memory state (previous readings, rolling mean) so that anomaly scoring is accurate immediately — even after a restart.
 
-**1. Presentation Layer**
-- React dashboard for telemetry submission and anomaly visualisation
-- Displays historical telemetry and anomaly alerts
+---
 
-**2. Application Layer**
-- Spring Boot backend providing REST APIs
-- Handles request routing, persistence, and WebSocket broadcasting
+## Design Decisions
 
-**3. ML Processing Layer**
-- FastAPI microservice responsible for feature engineering and anomaly detection
-- Uses a trained IsolationForest model to score incoming telemetry
+**Why a separate ML service instead of putting ML inside Spring Boot?**
+The ML service is independently deployable. The current IsolationForest model is designed to be replaced with more complex approaches such as Autoencoders or LSTM networks as the project evolves. Retraining the model, swapping the algorithm, or changing the feature engineering only requires changes to the Python service — Spring Boot does not need to be touched or redeployed. The Python ML ecosystem (Scikit-learn, FAISS, sentence-transformers) also has no mature Java equivalent, making Python the natural choice for the ML layer.
 
-**4. Data Layer**
-- PostgreSQL database storing telemetry records and anomaly results
+**Why Spring Boot as the orchestrator?**
+Spring Boot was chosen because it provides a mature ecosystem for persistence (Spring Data JPA maps the `TelemetryData` model to a PostgreSQL table automatically — no SQL was written manually) and is widely used in enterprise environments. Spring Security is included as a dependency with all requests currently permitted — authentication and authorisation can be layered on without restructuring the application.
 
-**5. Infrastructure Layer**
-- Docker Compose manages container orchestration, service networking, and environment configuration
+**Why FastAPI for the ML service?**
+FastAPI is lightweight and simple to set up — a single `app.py` file is enough to expose a working prediction endpoint. It also provides a built-in interactive API page at `/docs` which was useful for testing the ML service during development.
 
+**Why PostgreSQL?**
+PostgreSQL stores telemetry history so it persists across restarts and page refreshes. Without it, all submitted readings and anomaly results would be lost when the server stops. Spring Data JPA maps the `TelemetryData` model to a table automatically and provides `save()` and `findAll()` out of the box — no SQL was written manually. The data is stored in a Docker volume so it survives container restarts — only `docker compose down -v` removes it permanently.
+
+**Why in-memory state in the ML service?**
+The ML service keeps a per-satellite dictionary of previous readings in memory to compute delta features and a rolling mean efficiently on every request. On startup, this dictionary is seeded from PostgreSQL via Spring Boot's API so it is accurate immediately after a restart. During normal operation it is updated with each new reading.
+
+**Why Docker Compose?**
+The project spans four different runtimes — Java, Python, Node, and PostgreSQL. Without Docker Compose, each service would need to be installed and started manually with the correct runtime versions and environment variables. Docker Compose reduces the entire setup to one command and ensures services start in the correct order.
+
+**Why IsolationForest?**
+IsolationForest is well suited to unsupervised anomaly detection on tabular data. It requires no labelled anomaly examples, handles the feature space efficiently, and produces an interpretable anomaly score rather than just a binary flag — which makes the results easier to explain to an operator.
+
+**Why a RAG layer for explanations?**
+A raw anomaly score tells you something is wrong but not why. The RAG layer retrieves the closest matching fault description from a knowledge base, giving the operator actionable context alongside the detection. FAISS keeps the retrieval fast and offline — no external API call is needed for the core explanation.
+
+---
 
 ## Services
 
-| Service | Tech | Responsibility |
-|---------|------|-----------------|
-| **Frontend** | React + Vite | Telemetry submission, anomaly visualization, history display |
-| **Backend** | Spring Boot | REST API, persistence, WebSocket broadcast |
-| **ML Service** | FastAPI + Scikit-Learn | Feature engineering + anomaly scoring |
-| **Database** | PostgreSQL | Persistent telemetry storage |
-| **Orchestration** | Docker Compose | Multi-service networking & configuration |
+| Service | Tech | Port | Responsibility |
+|---|---|---|---|
+| **Frontend** | React + Vite → nginx | 5173 (host) → 80 (container) | Telemetry submission form, anomaly visualisation, history display |
+| **Backend** | Spring Boot 3 | 8080 | Orchestrates ML call, persists to DB, history API |
+| **ML Service** | FastAPI + Scikit-Learn | 8000 | Feature engineering, anomaly scoring, RAG explanation |
+| **Database** | PostgreSQL 15 | 5432 | Persistent telemetry + anomaly storage |
 
-##  Key Features
+> **Note on the frontend port:** When running via Docker Compose, port `5173` on your host maps to **nginx port 80** inside the container. The frontend is a production build served by nginx — not the Vite dev server.
 
-- **Real-time telemetry ingestion** – Accept and process satellite sensor data instantly
-- **IsolationForest-based anomaly detection** – Statistically sound anomaly scoring
-- **Feature engineering** – Delta and rolling mean computations
-- **RAG-powered explanation generation** – Uses FAISS vector search to retrieve contextual documents and generate explanations for detected anomalies
-- **REST + WebSocket backend** – Flexible client communication patterns
-- **Persistent storage** – PostgreSQL for reliable data retention
-- **Fully Dockerized microservice architecture** – Production-ready containerization
-- **Environment-based configuration** – Flexible deployment across environments
-- **Clean separation of services** – Maintainable, independently deployable components
+---
 
-## Running the Full Stack (Recommended)
+## Quick Start (Docker Compose)
 
-From the project root:
+### Prerequisites
+
+- Docker Desktop running
+- An `.env` file in the project root (see Environment Configuration below)
+
+### Build the RAG index first
+
+```bash
+cd ml-service
+pip install -r requirements.txt
+python rag/build_index.py
+cd ..
+```
+
+This generates `ml-service/rag/faiss_index.bin` and `ml-service/rag/documents.pkl`.
+
+### Train the model
+
+```bash
+cd ml-service
+python train_model.py
+cd ..
+```
+
+This generates `anomaly_pipeline.pkl` in `ml-service/`.
+
+> Model artifacts are excluded from Git via `.gitignore`. You must generate them locally before building the Docker image.
+
+### Start all services
 
 ```bash
 docker compose up --build -d
@@ -87,13 +125,13 @@ View logs:
 docker compose logs -f
 ```
 
-### Services & Ports
+### Services & URLs
 
 | Service | URL |
-|---------|-----|
+|---|---|
 | Frontend | http://localhost:5173 |
-| Backend | http://localhost:8080 |
-| ML Service | http://localhost:8000/docs |
+| Backend API | http://localhost:8080 |
+| ML Service (docs) | http://localhost:8000/docs |
 | PostgreSQL | localhost:5432 |
 
 Stop services:
@@ -108,41 +146,57 @@ Remove database volume:
 docker compose down -v
 ```
 
->  Make sure Docker Desktop is running before executing the commands above.
+> **Warning:** `docker compose down -v` permanently deletes the PostgreSQL volume and all stored telemetry history.
 
-##  ML Pipeline
+---
 
-The ML service:
+## ML Pipeline
 
-- Accepts raw telemetry (/predict)
-- Computes engineered features:
-  - Temperature delta
-  - Voltage delta
-  - Rolling mean
-- Applies a pre-trained IsolationForest
-- Produces:
-  - Anomaly score
-  - Binary anomaly flag
-  - Optional contextual explanation
+The ML service (`ml-service/app.py`) accepts a `POST /predict` request from Spring Boot and returns a scored result.
 
-**Training script:** ml-service/train_model.py
+**Feature engineering** (computed per satellite, statefully):
 
-**Generates:** anomaly_pipeline.pkl
+| Feature | Description |
+|---|---|
+| `temperature` | Submitted reading |
+| `voltage` | Submitted reading |
+| `altitude` | Submitted reading |
+| `temp_delta` | Change in temperature since last reading |
+| `volt_delta` | Change in voltage since last reading |
+| `rolling_temp_mean` | Rolling mean of last 10 temperature readings |
 
-*(Note: Model artifacts are excluded from Git.)*
+**Model:** IsolationForest (300 estimators, contamination=0.02), trained on normal telemetry only, with a StandardScaler fitted on the full dataset.
 
-##  Data Flow
+**Output:**
+- `anomalyScore` — raw decision function score (more negative = more anomalous)
+- `isAnomaly` — boolean flag (`true` when `prediction == -1`)
+- `explanation` — RAG-retrieved fault description (anomalies only)
 
-1. Client sends telemetry to ML service
-2. ML service scores data
-3. ML service optionally forwards result to backend
-4. Backend stores record in PostgreSQL
-5. Backend broadcasts via WebSocket
-6. Clients retrieve history via /api/telemetry
+**Training script:** `ml-service/train_model.py`
+**Output artifact:** `ml-service/anomaly_pipeline.pkl`
+
+---
+
+## RAG Explanation Engine
+
+When an anomaly is detected, `rag/rag_engine.py` generates a contextual explanation in two steps:
+
+1. **Retrieval:** The anomaly data is converted to a text description and embedded using `sentence-transformers/all-MiniLM-L6-v2`. FAISS searches the local index for the 2 most similar fault descriptions from the knowledge base.
+
+2. **Generation:** The retrieved descriptions and anomaly data are sent to OpenAI GPT-4o-mini, which generates a human-readable explanation of the likely cause and recommended action from the perspective of an aerospace systems analyst.
+
+The current knowledge base covers four fault patterns (voltage drop, temperature spike, voltage decay, temperature oscillation). Expanding the document set and rebuilding the index will improve explanation coverage.
+
+> **Requires:** `OPENAI_API_KEY` environment variable. Without it the explanation step is skipped and a fallback message is returned — anomaly detection still works normally.
+
+**Build index:** `ml-service/rag/build_index.py`
+**Index artifacts:** `ml-service/rag/faiss_index.bin`, `ml-service/rag/documents.pkl`
+
+---
 
 ## Running Services Individually
 
-### Backend
+### Backend (Spring Boot)
 
 ```bash
 cd secure_dashboard
@@ -150,93 +204,88 @@ cd secure_dashboard
 ./mvnw spring-boot:run
 ```
 
+> **Windows users:** If you get a `FATAL: invalid value for parameter "TimeZone"` error, run:
+> ```bash
+> ./mvnw spring-boot:run "-Dspring-boot.run.jvmArguments=-Duser.timezone=Asia/Kolkata"
+> ```
 
+Backend tests use an in-memory H2 database configured in `src/test/resources/application.properties`.
 
-
-Or with custom database:
-
-```bash
-./mvnw spring-boot:run \
-    -Dspring.datasource.url=jdbc:postgresql://localhost:5432/telemetry \
-    -Dspring.datasource.username=postgres \
-    -Dspring.datasource.password=postgres
-```
-
-**Tests:** Unit/integration tests use in-memory H2 via `src/test/resources/application.properties`
-
-### ML Service
+### ML Service (FastAPI)
 
 ```bash
 cd ml-service
 pip install -r requirements.txt
-uvicorn app:app --reload --port 8000
+python rag/build_index.py
+python train_model.py
+python -m uvicorn app:app --reload --port 8000
 ```
 
+> **Windows users:** Use `python -m uvicorn` instead of `uvicorn` directly if the command is not recognised.
 
-
-
-Expects trained pipeline: `anomaly_pipeline.pkl`
-
-Optionally forwards results to backend at `http://backend:8080/api/ml/result` (adjust `SPRING_URL` in `app.py`)
-
-### Support Scripts
-
-- **`ml-service/train_model.py`** – Synthetic data generator & model training → `anomaly_pipeline.pkl`
-- **`ml-service/rag/build_index.py`** – Builds FAISS index & document list for explanation generation
-
-## Testing
-
-Backend tests use in-memory H2:
-
-```
-src/test/resources/application.properties
-```
+---
 
 ## Environment Configuration
 
-Environment variables for:
+Create a `.env` file in the project root:
 
-- Database credentials
-- Service URLs
-- Optional OpenAI API key (RAG)
+```env
+# Required for RAG explanation generation (optional — explanations fall back gracefully)
+OPENAI_API_KEY=your_key_here
+```
 
-Frontend configuration via:
+Frontend environment files:
 
-- frontend/.env.production
-- frontend/.env.development
+`frontend/.env.development`:
+```env
+VITE_BACKEND_URL=http://localhost:8080
+```
 
-## Future Work
+`frontend/.env.production`:
+```env
+VITE_BACKEND_URL=http://localhost:8080
+```
 
-Possible improvements and research directions include:
+---
 
-- Evaluating deep learning based anomaly detection methods such as **Autoencoders or LSTM networks**
-- Expanding the **RAG explanation system** with larger knowledge bases and improved retrieval strategies
-- Integrating **stream processing frameworks (Kafka / Spark Streaming)** for large-scale telemetry ingestion
-- Applying the system to **real-world satellite telemetry datasets**
-- Implementing **automated alerting systems** for anomaly detection events
+## Testing
+
+Backend unit and integration tests use an in-memory H2 database:
+
+```bash
+cd secure_dashboard
+./mvnw test
+```
+
+Test configuration: `src/test/resources/application.properties`
+
+---
 
 ## Tech Stack
 
-- **Java 17** – Backend runtime
-- **Spring Boot 3** – Web framework & DI
-- **PostgreSQL** – Relational database
-- **FastAPI** – ML service framework
-- **Scikit-Learn** – Machine learning
-- **React** – Frontend UI
-- **Docker Compose** – Container orchestration
+| Layer | Technology |
+|---|---|
+| Frontend | React, Vite, nginx (Docker) |
+| Backend | Java 17, Spring Boot 3 |
+| ML Service | Python, FastAPI, Scikit-Learn, sentence-transformers, FAISS |
+| Database | PostgreSQL 15 |
+| Infrastructure | Docker Compose |
+
+---
+
+## Future Work
+
+- **Deep learning anomaly detection:** Swap IsolationForest for Autoencoders or LSTM networks for richer temporal pattern detection.
+- **Real telemetry integration:** Connect to a real satellite data source or simulator instead of manual form input.
+- **Expanded RAG knowledge base:** Add more fault descriptions to improve explanation quality and coverage.
+- **Stream processing:** Integrate Kafka for high-volume telemetry ingestion at scale.
+- **Authentication:** Add JWT authentication using the Spring Security foundation already in place.
+- **Real-time updates:** Add Server-Sent Events so the history table updates automatically across multiple connected clients.
+
+---
 
 ## Screenshots
-![alt text](images/anomaly.png)
-![alt text](images/dashboardui.png)
-![alt text](images/telemetryhistory.png)
 
-## Why This Project?
-
-This project demonstrates:
-
-- **Multi-service architecture** – Loosely coupled, independently deployable services
-- **Backend + ML integration** – Seamless service-to-service communication
-- **Container networking** – Service discovery via Docker DNS
-- **Environment-driven configuration** – Flexible, secure credential management
-- **Clean production-style structure** – Industry-standard project organization
-- **Separation of concerns** – Each service owns its domain
+![Anomaly detection](images/anomaly.png)
+![Dashboard UI](images/dashboardui.png)
+![Telemetry history](images/telemetryhistory.png)

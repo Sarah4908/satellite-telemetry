@@ -52,7 +52,7 @@ public class TelemetryControllerTests {
                 .content(json))
                 .andExpect(status().isOk());
 
-        // afterwards GET should still return ok
+        
         mockMvc.perform(get("/api/telemetry"))
                 .andExpect(status().isOk());
     }

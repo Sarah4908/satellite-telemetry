@@ -17,15 +17,10 @@ public class TelemetryController {
         this.telemetryService = telemetryService;
     }
 
-    @PostMapping("/ml/result")
-    public ResponseEntity<TelemetryData> receiveMlResult(@RequestBody TelemetryData result) {
-        TelemetryData saved = telemetryService.save(result);
-        return ResponseEntity.ok(saved);
-    }
-
+    // Main entry point — frontend calls this, Spring Boot calls FastAPI internally
     @PostMapping("/telemetry")
     public ResponseEntity<TelemetryData> ingest(@RequestBody TelemetryData data) {
-        TelemetryData saved = telemetryService.save(data);
+        TelemetryData saved = telemetryService.ingestAndScore(data);
         return ResponseEntity.ok(saved);
     }
 

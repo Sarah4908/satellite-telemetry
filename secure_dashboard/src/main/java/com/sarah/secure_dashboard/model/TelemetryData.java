@@ -25,7 +25,7 @@ public class TelemetryData {
     private double voltDelta;
     @com.fasterxml.jackson.annotation.JsonProperty("rolling_temp_mean")
     private double rollingTempMean;
-    @com.fasterxml.jackson.annotation.JsonProperty("isAnomaly")
+    @com.fasterxml.jackson.annotation.JsonAlias("isAnomaly")
     private boolean anomaly;
     @com.fasterxml.jackson.annotation.JsonProperty("anomalyScore")
     private Double anomalyScore;

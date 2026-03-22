@@ -1,10 +1,9 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
-
     <groupId>com.sarah</groupId>
     <artifactId>secure-dashboard</artifactId>
     <version>0.0.1-SNAPSHOT</version>
@@ -31,6 +30,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- WebFlux — provides WebClient for calling FastAPI internally -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
 
         <!-- Security -->
         <dependency>
@@ -50,11 +54,6 @@
             <artifactId>postgresql</artifactId>
         </dependency>
 
-        <!-- WebSocket -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-websocket</artifactId>
-        </dependency>
 
         <!-- Lombok -->
         <dependency>
@@ -70,12 +69,13 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- In‑memory database used during tests so we don't need a real Postgres instance -->
+        <!-- In-memory database used during tests -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+
     </dependencies>
 
     <build>

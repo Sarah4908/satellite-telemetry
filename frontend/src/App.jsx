@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import "./App.css";
 
 function App() {
-  const ML_URL = import.meta.env.VITE_ML_URL;
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
   const [form, setForm] = useState({
     satelliteId: "",
     temperature: "",
@@ -35,13 +35,17 @@ function App() {
   }, []);
 
   const submitTelemetry = async () => {
+    if (!form.satelliteId) {
+      setError("Please enter a Satellite ID.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setResult(null);
 
     try {
-      // Call ML service
-      const mlRes = await fetch(`${ML_URL}/predict`, {
+      const res = await fetch(`${BACKEND_URL}/api/telemetry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -52,24 +56,13 @@ function App() {
         }),
       });
 
-      if (!mlRes.ok) throw new Error("ML service failed");
+      if (!res.ok) throw new Error("Backend request failed");
 
-      const mlData = await mlRes.json();
-
-      // Save to backend
-      const saveRes = await fetch(`${BACKEND_URL}/api/ml/result`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mlData),
-      });
-
-      if (!saveRes.ok) throw new Error("Backend save failed");
-
-      const saved = await saveRes.json();
+      const saved = await res.json();
       setResult(saved);
       fetchHistory();
     } catch (err) {
-      setError("Backend or ML service is not reachable.");
+      setError("Backend is not reachable. Make sure all services are running.");
     }
 
     setLoading(false);
@@ -77,15 +70,14 @@ function App() {
 
   return (
     <div className="dashboard">
-      <h1> Satellite Telemetry Dashboard</h1>
+      <h1>Satellite Telemetry Dashboard</h1>
 
       {error && <div className="error">{error}</div>}
 
       <div className="grid">
-
         {/* INPUT PANEL */}
         <div className="card">
-          <h2> Send Telemetry</h2>
+          <h2>Send Telemetry</h2>
           <input name="satelliteId" placeholder="Satellite ID" onChange={handleChange} />
           <input name="temperature" placeholder="Temperature" onChange={handleChange} />
           <input name="voltage" placeholder="Voltage" onChange={handleChange} />
@@ -97,19 +89,16 @@ function App() {
 
         {/* RESULT PANEL */}
         <div className="card">
-          <h2> ML Analysis</h2>
-
+          <h2>ML Analysis</h2>
           {result ? (
             <>
-              <div className={`status ${result.isAnomaly ? "anomaly" : "normal"}`}>
-                {result.isAnomaly ? " Anomaly Detected" : " Normal"}
+              <div className={`status ${result.anomaly ? "anomaly" : "normal"}`}>
+                {result.anomaly ? "Anomaly Detected" : "Normal"}
               </div>
-
               <p><b>Anomaly Score:</b> {result.anomalyScore}</p>
               <p><b>Temperature:</b> {result.temperature}</p>
               <p><b>Voltage:</b> {result.voltage}</p>
               <p><b>Altitude:</b> {result.altitude}</p>
-
               {result.explanation && (
                 <div className="explanation">
                   <b>Explanation:</b>
@@ -125,8 +114,7 @@ function App() {
 
       {/* HISTORY TABLE */}
       <div className="card history">
-        <h2> Telemetry History</h2>
-
+        <h2>Telemetry History</h2>
         {history.length === 0 ? (
           <p>No telemetry stored yet.</p>
         ) : (
@@ -148,14 +136,8 @@ function App() {
                   <td>{item.temperature}</td>
                   <td>{item.voltage}</td>
                   <td>{item.altitude}</td>
-                  <td>
-                    {item.isAnomaly ? "Anomaly" : "Normal"}
-                  </td>
-                  <td>
-                    {item.timestamp
-                      ? new Date(item.timestamp).toLocaleString()
-                      : ""}
-                  </td>
+                  <td>{item.anomaly ? "Anomaly" : "Normal"}</td>
+                  <td>{item.timestamp ? new Date(item.timestamp).toLocaleString() : ""}</td>
                 </tr>
               ))}
             </tbody>
